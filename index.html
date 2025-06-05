@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bitacora de guerra</title>
+  <style>
+    body {
+      font-family: 'Special Elite', monospace;
+      background-color: #e0d6c3;
+      color: #2b2b2b;
+      padding: 20px;
+      text-align: center;
+      background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
+    }
+
+    h1, h2, h3, h4 {
+      color: #800000;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    input, button, select {
+      margin: 5px;
+      padding: 10px;
+      font-size: 1rem;
+      border: 2px solid #333;
+      background-color: #f5f5dc;
+      color: #000;
+      border-radius: 5px;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    button {
+      background-color: #4b5320;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #3b3e1f;
+    }
+
+    #gamePanel, #playerSetup {
+      border: 3px dashed #800000;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 600px;
+      background-color: rgba(255, 255, 255, 0.85);
+      border-radius: 10px;
+    }
+
+    .player-info {
+      margin-top: 10px;
+      background-color: #f9f5e3;
+      padding: 10px;
+      border: 1px solid #888;
+      border-left: 5px solid #800000;
+      text-align: left;
+    }
+
+    #log p {
+      background-color: #fff;
+      border-left: 4px solid #333;
+      padding: 5px 10px;
+      margin: 5px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    ul {
+      list-style-type: '⚔ ';
+      text-align: left;
+      padding-left: 20px;
+    }
+
+    select, input[type="number"] {
+      width: 80%;
+    }
+
+    #log {
+      margin-top: 20px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>Bitacora de guerra</h1>
+
+  <div id="playerSetup">
+    <input type="text" id="playerName" placeholder="Nombre del jugador">
+    <button onclick="addPlayer()">Agregar jugador</button>
+    <div id="playerList"></div>
+    <button onclick="startGame()">Iniciar juego</button>
+  </div>
+
+  <div id="gamePanel" style="display:none;">
+    <h2>Panel del Juego</h2>
+    <select id="actionPlayer" onchange="togglePropertySelector()"></select>
+    <select id="actionType" onchange="togglePropertySelector()">
+      <option value="buy">Comprar propiedad</option>
+      <option value="gain">Ganar dinero</option>
+      <option value="lose">Perder dinero</option>
+      <option value="resell">Reventa de país</option>
+    </select>
+
+    <div id="propertySelector">
+      <select id="propertySelect"></select>
+    </div>
+
+    <input type="number" id="amount" placeholder="Cantidad ($)">
+
+    <div id="resellOptions" style="display: none;">
+      <h4>Reventa de país</h4>
+      <label>Propiedad:</label>
+      <select id="resellProperty"></select><br>
+      <label>Vender a:</label>
+      <select id="resellTarget"></select><br>
+      <label>Precio de reventa:</label>
+      <input type="number" id="resellAmount" placeholder="Monto ($)">
+    </div>
+
+    <button onclick="applyAction()">Aplicar acción</button>
+
+    <div id="log"></div>
+    <h3>Estado del Juego</h3>
+    <div id="playerStatus"></div>
+    <button onclick="endGame()">Finalizar juego</button>
+  </div>
+
+  <script>
+    const players = {};
+    const playerProperties = {};
+    const properties = {
+      "Alemania": 39500, "Austria-Hungria": 32000, "Bélgica": 30000, "China": 33000, "Checoslovaquia": 30000,
+      "Cuba": 24000, "Dinamarca": 28000, "Egipto": 30000, "Estados Unidos": 45000, "Estonia": 26000,
+      "Filipinas": 28000, "Francia": 33000, "Grecia": 29000, "Irak": 27000, "Italia": 34000,
+      "Japón": 36000, "México": 27000, "Noruega": 28000, "Paises bajos": 29000, "Polonia": 31000,
+      "Reino Unido": 37000, "Rumania": 29000, "Rusia": 42000, "Serbia": 29000,
+      "Turquía": 30000, "Ucrania": 30000
+    };
+
+    function addPlayer() {
+      const name = document.getElementById('playerName').value.trim();
+      if (name && !players[name]) {
+        players[name] = 150000;
+        playerProperties[name] = [];
+        document.getElementById('playerName').value = '';
+        updatePlayerList();
+      }
+    }
+
+    function updatePlayerList() {
+      const list = document.getElementById('playerList');
+      list.innerHTML = '<h3>Jugadores:</h3><ul>' +
+        Object.keys(players).map(p => `<li>${p} - $${players[p]}</li>`).join('') + '</ul>';
+    }
+
+    function startGame() {
+      if (Object.keys(players).length < 2) {
+        alert('Agrega al menos 2 jugadores para iniciar el juego.');
+        return;
+      }
+      document.getElementById('playerSetup').style.display = 'none';
+      document.getElementById('gamePanel').style.display = 'block';
+      updatePlayerStatus();
+
+      document.getElementById('actionPlayer').innerHTML = Object.keys(players).map(p => `<option value="${p}">${p}</option>`).join('');
+      updatePropertySelect();
+      togglePropertySelector();
+    }
+
+    function updatePropertySelect() {
+      const propertySelect = document.getElementById('propertySelect');
+      propertySelect.innerHTML = Object.keys(properties).map(p => `<option value="${p}">${p} ($${properties[p]})</option>`).join('');
+    }
+
+    function togglePropertySelector() {
+      const type = document.getElementById('actionType').value;
+      document.getElementById('propertySelector').style.display = (type === 'buy') ? 'block' : 'none';
+      document.getElementById('amount').style.display = (type === 'gain' || type === 'lose') ? 'inline-block' : 'none';
+      document.getElementById('resellOptions').style.display = (type === 'resell') ? 'block' : 'none';
+
+      if (type === 'resell') {
+        const player = document.getElementById('actionPlayer').value;
+        const owned = playerProperties[player] || [];
+        document.getElementById('resellProperty').innerHTML = owned.map(p => `<option value="${p}">${p}</option>`).join('');
+
+        const playersList = Object.keys(players).filter(p => p !== player);
+        const options = ['<option value="bank">Banco</option>']
+          .concat(playersList.map(p => `<option value="${p}">${p}</option>`));
+        document.getElementById('resellTarget').innerHTML = options.join('');
+      }
+    }
+
+    function applyAction() {
+      const player = document.getElementById('actionPlayer').value;
+      const type = document.getElementById('actionType').value;
+      let amount = 0;
+
+      if (type === 'buy') {
+        const property = document.getElementById('propertySelect').value;
+        amount = properties[property];
+        players[player] -= amount;
+        playerProperties[player].push(property);
+        delete properties[property];
+        updatePropertySelect();
+        logAction(player, type, amount, property);
+      } else if (type === 'resell') {
+        const property = document.getElementById('resellProperty').value;
+        const buyer = document.getElementById('resellTarget').value;
+        const value = parseInt(document.getElementById('resellAmount').value);
+
+        if (buyer === 'bank') {
+          players[player] += value;
+          properties[property] = value;
+          playerProperties[player] = playerProperties[player].filter(p => p !== property);
+        } else {
+          if (players[buyer] < value) return alert('El comprador no tiene suficiente dinero.');
+          players[player] += value;
+          players[buyer] -= value;
+          playerProperties[player] = playerProperties[player].filter(p => p !== property);
+          playerProperties[buyer].push(property);
+        }
+        logAction(player, 'resell', value, property, buyer);
+        updatePropertySelect();
+      } else {
+        amount = parseInt(document.getElementById('amount').value);
+        if (!amount || amount <= 0) return alert('Ingresa una cantidad válida.');
+        if (type === 'lose') players[player] -= amount;
+        else if (type === 'gain') players[player] += amount;
+        logAction(player, type, amount);
+      }
+      updatePlayerStatus();
+    }
+
+    function logAction(player, type, amount, property = '', target = '') {
+      const actionText = {
+        buy: `compró ${property} por $${amount}`,
+        gain: `ganó $${amount}`,
+        lose: `perdió $${amount}`,
+        resell: target === 'bank' ? `vendió ${property} al banco por $${amount}` : `vendió ${property} a ${target} por $${amount}`
+      };
+      const log = document.getElementById('log');
+      const entry = document.createElement('p');
+      entry.textContent = `${player} ${actionText[type]}`;
+      log.appendChild(entry);
+    }
+
+    function updatePlayerStatus() {
+      const status = document.getElementById('playerStatus');
+      status.innerHTML = Object.keys(players).map(p => {
+        const props = playerProperties[p].map(prop => `${prop} ($${properties[prop] || 'vendido'})`).join(', ');
+        return `<div class="player-info">${p}: $${players[p]}<br>Propiedades: ${props || 'Ninguna'}</div>`;
+      }).join('');
+    }
+
+    function endGame() {
+      const scores = Object.entries(players).map(([name, cash]) => {
+        const props = playerProperties[name] || [];
+        const propertyValue = props.reduce((sum, prop) => sum + (properties[prop] || 0), 0);
+        return { name, total: cash + propertyValue };
+      });
+      scores.sort((a, b) => b.total - a.total);
+      alert(`¡Juego terminado! El ganador es ${scores[0].name} con un total de $${scores[0].total}`);
+    }
+  </script>
+</body>
+</html>
+
